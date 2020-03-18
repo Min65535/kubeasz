@@ -54,7 +54,9 @@ data:
   Corefile: |
     .:53 {
         errors
-        health
+        health {
+          lameduck 5s
+        }
         ready
         kubernetes {{ CLUSTER_DNS_DOMAIN }} in-addr.arpa ip6.arpa {
           pods insecure
@@ -63,12 +65,11 @@ data:
         prometheus :9153
         forward . /etc/resolv.conf
         cache 30
-        loop
         reload
         loadbalance
     }
 ---
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: coredns
@@ -77,7 +78,7 @@ metadata:
     k8s-app: kube-dns
     kubernetes.io/name: "CoreDNS"
 spec:
-  replicas: 2
+  replicas: 1
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -97,6 +98,15 @@ spec:
           operator: "Exists"
       nodeSelector:
         beta.kubernetes.io/os: linux
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: k8s-app
+                operator: In
+                values: ["kube-dns"]
+            topologyKey: kubernetes.io/hostname
       containers:
       - name: coredns
         image: coredns/coredns:{{ corednsVer }}
